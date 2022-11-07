@@ -1,0 +1,220 @@
+#' Create a user defined item with correct generic functions
+#'
+#' Initializes the proper S4 class and methods necessary for mirt functions to use in estimation.
+#' To use the defined objects pass to the \code{mirt(..., customItems = list())} command, and
+#' ensure that the classes are properly labeled and unique in the list. Additionally,
+#' the input \code{mirt(..., customItemsData = list())} can also be included to specify additional
+#' item-level information to better recycle custom-item defintions (e.g., for supplying varying
+#' Q-matricies), where the \code{list} input must have the same length as the number of items.
+#' For further examples regarding how this function can be used for
+#' fitting unfolding-type models see Liu and Chalmers (2018).
+#'
+#' The \code{summary()} function will not return proper standardized loadings since the function
+#' is not sure how to handle them (no slopes could be defined at all!). Instead loadings of .001
+#' are filled in as place-holders.
+#'
+#' @aliases createItem
+#' @param name a character indicating the item class name to be defined
+#' @param par a named vector of the starting values for the parameters
+#' @param est a logical vector indicating which parameters should be freely estimated by default
+#' @param P the probability trace function for all categories (first column is category 1, second
+#'   category two, etc). First input contains a vector of all the item parameters, the second input
+#'   must be a matrix called \code{Theta}, the third input must be the number of categories
+#'   called \code{ncat}, and (optionally) a fourth argument termed \code{itemdata}
+#'   may be included containing further  users specification information.
+#'   The last optional input is to be utilized within the estimation functions
+#'   such as \code{\link{mirt}} via the list input \code{customItemsData}
+#'   to more naturally recycle custom-item definitions. Therefore, these inputs must be of the form
+#'
+#'   \code{function(par, Theta, ncat){...}}
+#'
+#'   or
+#'
+#'   \code{function(par, Theta, ncat, itemdata){...}}
+#'
+#'   to be valid; however, the names of the arguements is not relavent.
+#'
+#'   Finally, this function must return a \code{matrix} object of category probabilities, where
+#'   the columns represent each respective category
+#' @param gr gradient function (vector of first derivatives) of the log-likelihood used in
+#'   estimation. The function must be of the form \code{gr(x, Theta)}, where \code{x} is the object
+#'   defined by \code{createItem()} and \code{Theta} is a matrix of latent trait parameters.
+#'   Tabulated (EM) or raw (MHRM) data are located in the \code{x@@dat} slot, and are used to form
+#'   the complete data log-likelihood. If not specified a numeric approximation will be used
+#' @param hss Hessian function (matrix of second derivatives) of the log-likelihood used in
+#'   estimation. If not specified a numeric approximation will be used (required for the MH-RM
+#'   algorithm only). The input is identical to the \code{gr} argument
+#' @param gen a function used when \code{GenRandomPars = TRUE} is passed to the estimation function
+#'   to generate random starting values. Function must be of the form \code{function(object) ...}
+#'   and must return a vector with properties equivalent to the \code{par} object. If NULL,
+#'   parameters will remain at the defined starting values by default
+#' @param lbound optional vector indicating the lower bounds of the parameters. If not specified
+#'   then the bounds will be set to -Inf
+#' @param ubound optional vector indicating the lower bounds of the parameters. If not specified
+#'   then the bounds will be set to Inf
+#' @param derivType if the \code{gr} term is not specified this type will be used to
+#'   obtain the gradient numerically or symbolically. Default is the 'Richardson'
+#'   extrapolation method; see \code{\link{numerical_deriv}} for details and other options. If
+#'   \code{'symbolic'} is supplied then the gradient will be computed using
+#'   a symbolical approach (potentially the most accurate method, though may fail depending
+#'   on how the \code{P} function was defined)
+#' @param derivType.hss if the \code{hss} term is not specified this type will be used to
+#'   obtain the Hessian numerically. Default is the 'Richardson'
+#'   extrapolation method; see \code{\link{numerical_deriv}} for details and other options. If
+#'   \code{'symbolic'} is supplied then the Hessian will be computed using
+#'   a symbolical approach (potentially the most accurate method, though may fail depending
+#'   on how the \code{P} function was defined)
+#' @param bytecompile logical; where applicable, byte compile the functions provided? Default is
+#'   \code{TRUE} to provide
+#'
+#' @author Phil Chalmers \email{rphilip.chalmers@@gmail.com}
+#' @references
+#' Chalmers, R., P. (2012). mirt: A Multidimensional Item Response Theory
+#' Package for the R Environment. \emph{Journal of Statistical Software, 48}(6), 1-29.
+#' \doi{10.18637/jss.v048.i06}
+#'
+#' Liu, C.-W. and Chalmers, R. P. (2018). Fitting item response unfolding models to
+#'   Likert-scale data using mirt in R. \emph{PLoS ONE, 13}, 5.
+#'   \doi{https://doi.org/10.1371/journal.pone.0196292}
+#' @keywords createItem
+#' @export createItem
+#' @examples
+#'
+#' \dontrun{
+#'
+#' name <- 'old2PL'
+#' par <- c(a = .5, b = -2)
+#' est <- c(TRUE, TRUE)
+#' P.old2PL <- function(par,Theta, ncat){
+#'      a <- par[1]
+#'      b <- par[2]
+#'      P1 <- 1 / (1 + exp(-1*a*(Theta - b)))
+#'      cbind(1-P1, P1)
+#' }
+#'
+#' x <- createItem(name, par=par, est=est, P=P.old2PL)
+#'
+#' #So, let's estimate it!
+#' dat <- expand.table(LSAT7)
+#' sv <- mirt(dat, 1, c(rep('2PL',4), 'old2PL'), customItems=list(old2PL=x), pars = 'values')
+#' tail(sv) #looks good
+#' mod <- mirt(dat, 1, c(rep('2PL',4), 'old2PL'), customItems=list(old2PL=x))
+#' coef(mod)
+#' mod2 <- mirt(dat, 1, c(rep('2PL',4), 'old2PL'), customItems=list(old2PL=x), method = 'MHRM')
+#' coef(mod2)
+#'
+#' # same definition as above, but using symbolic derivative computations
+#' # (can be more accurate/stable)
+#' xs <- createItem(name, par=par, est=est, P=P.old2PL, derivType = 'symbolic')
+#' mod <- mirt(dat, 1, c(rep('2PL',4), 'old2PL'), customItems=list(old2PL=xs))
+#' coef(mod, simplify=TRUE)
+#'
+#' #several secondary functions supported
+#' M2(mod, calcNull=FALSE)
+#' itemfit(mod)
+#' fscores(mod, full.scores=FALSE)
+#' plot(mod)
+#'
+#' # fit the same model, but specify gradient function explicitly (use of a browser() may be helpful)
+#' gr <- function(x, Theta){
+#'      # browser()
+#'      a <- x@par[1]
+#'      b <- x@par[2]
+#'      P <- probtrace(x, Theta)
+#'      PQ <- apply(P, 1, prod)
+#'      r_P <- x@dat / P
+#'      grad <- numeric(2)
+#'      grad[2] <- sum(-a * PQ * (r_P[,2] - r_P[,1]))
+#'      grad[1] <- sum((Theta - b) * PQ * (r_P[,2] - r_P[,1]))
+#'
+#'      ## check with internal numerical form to be safe
+#'      # numerical_deriv(mirt:::EML, x@par[x@est], obj=x, Theta=Theta)
+#'      grad
+#' }
+#'
+#' x <- createItem(name, par=par, est=est, P=P.old2PL, gr=gr)
+#' mod <- mirt(dat, 1, c(rep('2PL',4), 'old2PL'), customItems=list(old2PL=x))
+#' coef(mod, simplify=TRUE)
+#'
+#' ###non-linear
+#' name <- 'nonlin'
+#' par <- c(a1 = .5, a2 = .1, d = 0)
+#' est <- c(TRUE, TRUE, TRUE)
+#' P.nonlin <- function(par,Theta, ncat=2){
+#'      a1 <- par[1]
+#'      a2 <- par[2]
+#'      d <- par[3]
+#'      P1 <- 1 / (1 + exp(-1*(a1*Theta + a2*Theta^2 + d)))
+#'      cbind(1-P1, P1)
+#' }
+#'
+#' x2 <- createItem(name, par=par, est=est, P=P.nonlin)
+#'
+#' mod <- mirt(dat, 1, c(rep('2PL',4), 'nonlin'), customItems=list(nonlin=x2))
+#' coef(mod)
+#'
+#' ###nominal response model (Bock 1972 version)
+#' Tnom.dev <- function(ncat) {
+#'    T <- matrix(1/ncat, ncat, ncat - 1)
+#'    diag(T[-1, ]) <-  diag(T[-1, ]) - 1
+#'    return(T)
+#' }
+#'
+#' name <- 'nom'
+#' par <- c(alp=c(3,0,-3),gam=rep(.4,3))
+#' est <- rep(TRUE, length(par))
+#' P.nom <- function(par, Theta, ncat){
+#'    alp <- par[1:(ncat-1)]
+#'    gam <- par[ncat:length(par)]
+#'    a <- Tnom.dev(ncat) %*% alp
+#'    c <- Tnom.dev(ncat) %*% gam
+#'    z <- matrix(0, nrow(Theta), ncat)
+#'    for(i in 1:ncat)
+#'        z[,i] <- a[i] * Theta + c[i]
+#'    P <- exp(z) / rowSums(exp(z))
+#'    P
+#' }
+#'
+#' nom1 <- createItem(name, par=par, est=est, P=P.nom)
+#' nommod <- mirt(Science, 1, 'nom1', customItems=list(nom1=nom1))
+#' coef(nommod)
+#' Tnom.dev(4) %*% coef(nommod)[[1]][1:3] #a
+#' Tnom.dev(4) %*% coef(nommod)[[1]][4:6] #d
+#'
+#' }
+createItem <- function(name, par, est, P, gr=NULL, hss = NULL, gen = NULL,
+                       lbound = NULL, ubound = NULL, derivType = 'Richardson',
+                       derivType.hss = 'Richardson', bytecompile = TRUE){
+    if(missing(name)) missingMsg('name')
+    if(missing(par)) missingMsg('par')
+    if(missing(est)) missingMsg('est')
+    if(missing(P)) missingMsg('P')
+    nms_args <- names(formals(P))
+    if(!(length(nms_args) %in% c(3L,4L)))
+        stop('P function does not have the correct number of arguments', call.=FALSE)
+    if(any(names(par) %in% c('g', 'u')) || any(names(est) %in% c('g', 'u')))
+        stop('Parameter names cannot be \'g\' or \'u\', please change.', call.=FALSE)
+    if(bytecompile) P <- compiler::cmpfun(P)
+    dps <- dps2 <- function() NULL
+    if(derivType == 'symbolic' || derivType.hss == 'symbolic'){
+        tmppars <- 1L:length(par)
+        names(tmppars) <- rep("par", length(par))
+        dps <- Deriv::Deriv(P, tmppars)
+        if(bytecompile) dps <- compiler::cmpfun(dps)
+    }
+    if(is.null(gr) && derivType == "symbolic")
+        gr <- symbolicGrad_par
+    if(bytecompile && !is.null(gr)) gr <- compiler::cmpfun(gr)
+    if(is.null(hss) && derivType.hss == "symbolic"){
+        dps2 <- Deriv::Deriv(dps, tmppars)
+        if(bytecompile) dps2 <- compiler::cmpfun(dps2)
+        hss <- symbolicHessian_par
+    }
+    if(bytecompile && !is.null(hss)) hss <- compiler::cmpfun(hss)
+    ret <- new('custom', name=name, par=par, est=est, parnames=names(par), lbound=lbound,
+               ubound=ubound, P=P, dps=dps, dps2=dps2, gr=gr, hss=hss, gen=gen, userdata=NULL,
+               derivType=derivType, derivType.hss=derivType.hss)
+    ret@useuserdata <- if(length(nms_args) == 3L) FALSE else TRUE
+    ret
+
+}

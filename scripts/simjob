@@ -1,0 +1,23 @@
+#!/bin/sh
+#SBATCH --nodes=1 --time=00:10:00
+module load stopos
+ncores=`sara-get-num-cores`
+
+for ((i=1; i<=ncores; i++)) ; do
+(
+  while true ; do
+    stopos next -m -p pool1 
+      if [ "$STOPOS_RC" != "OK" ] ; then
+        break
+      fi
+      if [ "$STOPOS_COMMITTED" -gt 3 ] ; then
+        stopos remove -p pool1 
+        continue
+      fi
+      
+      Rscript simscript.R $STOPOS_VALUE
+      stopos remove -p pool1
+  done
+) &
+done
+wait
