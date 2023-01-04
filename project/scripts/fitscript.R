@@ -24,7 +24,7 @@ insertEmptyRows <- function(m, rs){
 # function that inserts NA rows at each index specified in m
 insertEmptyCols <- function(m, cs){
   new = matrix(NA, nrow=nrow(m), ncol=ncol(m)+length(cs))
-  new[-cs,] <- m
+  new[,-cs] <- m
   return(new)
 }
 
@@ -90,7 +90,7 @@ cv.mirt <- function(data,          # matrix of responses
       d <- itempars[, ncol(itempars)-2]
       theta <- fscores(fit)
       
-      save(theta, a, d, file=paste('~/data_parameters/parameters/est/est', lambda1, lambda2, ndim, iteration, sparsity, '.RData', sep='_'))
+      #save(theta, a, d, file=paste('~/data_parameters/parameters/est/est', lambda1, lambda2, ndim, iteration, sparsity, '.RData', sep='_'))
       
       # calculate true and predicted probablities
       p.pred <- predict.mirt(a, d, theta)
