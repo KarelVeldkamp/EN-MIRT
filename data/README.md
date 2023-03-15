@@ -1,5 +1,6 @@
 # Data
 these are the results from our simulation studies and the application to the movielens dataset:
+True parameter values and generated data from the simulation study are available on [OSF](https://osf.io/umgep/)
 
 ### CAT_simulation_results.csv
 what: indicates which metric is given in this row (ndcg=the NDCG of the ranking, theta= the RMSE of theta)
