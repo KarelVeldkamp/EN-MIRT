@@ -42,22 +42,43 @@ bias <- function(par, est)
   mean(est-par)
 }
 
-F1 <- function(true, est) {
-  # Flatten matrices into vectors
-  true <- as.vector(true)
-  est <- as.vector(est)
+acc_f1_at_n <- function(true, pred, n) {
+
+  num_users <- dim(true)[1]
+  num_movies <- dim(true)[2]
   
-  # Calculate true positives, false positives, and false negatives
-  tp <- sum(true == 1 & est == 1)
-  fp <- sum(true == 0 & est == 1)
-  fn <- sum(true == 1 & est == 0)
+  topn_accuracies <- vector("numeric", num_users)
+  topn_f1_scores <- vector("numeric", num_users)
   
-  # Calculate precision, recall, and F1 score
-  precision <- tp / (tp + fp)
-  recall <- tp / (tp + fn)
-  f1_score <- 2 * precision * recall / (precision + recall)
+  for (i in 1:num_users) {
+    true_relevance <- true[i, ]
+    pred_relevance <- pred[i, ]
+    
+    # Get the indices of the top-n predicted relevance
+    topn_indices <- order(-pred_relevance)[1:n]
+    
+    # Calculate the top-n accuracy for the current user
+    topn_accuracy <- sum(true_relevance[topn_indices]) / n
+    
+    # Calculate the top-n F1 score for the current user
+    true_positives <- sum(true_relevance[topn_indices])
+    predicted_positives <- sum(pred_relevance[topn_indices])
+    actual_positives <- sum(true_relevance[topn_indices])
+    
+    precision <- true_positives / predicted_positives
+    recall <- true_positives / actual_positives
+    
+    f1_score <- 2 * precision * recall / (precision + recall)
+    
+    topn_accuracies[i] <- topn_accuracy
+    topn_f1_scores[i] <- f1_score
+  }
   
-  return(f1_score)
+  # Calculate the average top-n accuracy and top-n F1 score across all users
+  avg_topn_accuracy <- mean(topn_accuracies, na.rm = TRUE)
+  avg_topn_f1_score <- mean(topn_f1_scores, na.rm = TRUE)
+  
+  return(c(avg_topn_accuracy, avg_topn_f1_score))
 }
 
 
@@ -133,15 +154,19 @@ cv.mirt <- function(data,          # matrix of responses
       resp.pred = round(p.pred, 0)
       resp.true = round(p.true, 0)
       
-      # add 
+      # calculate metrics and save them
       rmses <- c(rmses, RMSE(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
       biases <- c(biases, bias(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
-      accuracies <- c(accuracies, mean(resp.pred==resp.true))
-      f1s <- c(f1s, F1(true=resp.true, est=resp.pred))
+      top10 <- acc_f1_at_n(true=resp.true, pred=resp.predm, n=10)
+      top20 <- acc_f1_at_n(true=resp.true, pred=resp.predm, n=20)
+      acc10 <- c(acc10, top10[1])
+      f110 <- c(f110, top10[2])
+      acc20 <- c(acc20, top20[1])
+      f120 <- c(f120, top20[2])
       
     }
   }
-  return(c(mean(rmses), mean(biases)))
+  return(c(mean(rmses), mean(biases), mean(acc10), mean(acc20), mean(f110), mean(f120)))
 }
 
 # read appropriate data file
@@ -189,7 +214,7 @@ print(time)
 
 # save results
 fileConn<-file(paste0('~/results/', lambda1,'_',lambda2,'_',ndim, '_',iteration,'_', sparsity, '.txt'))
-writeLines(c(as.character(metrics[1]), as.character(metrics[2])), fileConn)
+writeLines(c(as.character(metrics[1]), as.character(metrics[2]), as.character(metrics[3]), as.character(metrics[4]), as.character(metrics[5]), as.character(metrics[6])), fileConn)
 close(fileConn)
 
 
