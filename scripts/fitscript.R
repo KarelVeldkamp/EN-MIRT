@@ -103,6 +103,7 @@ cv.mirt <- function(data,          # matrix of responses
   biases = c()
   accuracies = c()
   f1s = c()
+  acc10 = acc20 = f110 = f120 = c()
   
   # loop though cross validation folds
   for (i in 1:k[1])
@@ -132,7 +133,7 @@ cv.mirt <- function(data,          # matrix of responses
       }
       
       # fit model
-      fit <- mirt(train, model, '2PL', method=method, GenRandomPars=randompars, lambda=lambda, pars=pars, technical = list())
+      fit <- mirt(train, model, '2PL', method=method, GenRandomPars=randompars, lambda=lambda, pars=pars, technical = list(NCYCLES=10))
       # save parameters
       itempars <- coef(fit, simplify = TRUE)$items
       a <- itempars[,1:(ncol(itempars)-3)]
@@ -157,8 +158,8 @@ cv.mirt <- function(data,          # matrix of responses
       # calculate metrics and save them
       rmses <- c(rmses, RMSE(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
       biases <- c(biases, bias(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
-      top10 <- acc_f1_at_n(true=resp.true, pred=resp.predm, n=10)
-      top20 <- acc_f1_at_n(true=resp.true, pred=resp.predm, n=20)
+      top10 <- acc_f1_at_n(true=resp.true[per.ind, item.ind], pred=resp.pred[per.ind, item.ind], n=10)
+      top20 <- acc_f1_at_n(true=resp.true[per.ind, item.ind], pred=resp.pred[per.ind, item.ind], n=20)
       acc10 <- c(acc10, top10[1])
       f110 <- c(f110, top10[2])
       acc20 <- c(acc20, top20[1])
@@ -170,10 +171,10 @@ cv.mirt <- function(data,          # matrix of responses
 }
 
 # read appropriate data file
-data1 = read.csv(paste('~/data_parameters/data/', ndim, iteration, sparsity, '.csv', sep='_'), row.names=1)
+data1 = read.csv(paste('~/rgmirt/data/', ndim, iteration, sparsity, '.csv', sep='_'), row.names=1)
 
 # load true parameter values
-load(file=paste('~/data_parameters/parameters/true/true', ndim, iteration, sparsity, '.RData', sep='_'))
+load(file=paste('~/rgmirt/parameters/true/true', ndim, iteration, sparsity, '.RData', sep='_'))
       
 # initialize paramters
 print('initializing pars...')
@@ -213,7 +214,7 @@ time = end-start
 print(time)
 
 # save results
-fileConn<-file(paste0('~/results/', lambda1,'_',lambda2,'_',ndim, '_',iteration,'_', sparsity, '.txt'))
+fileConn<-file(paste0('~/rgmirt/results/', lambda1,'_',lambda2,'_',ndim, '_',iteration,'_', sparsity, '.txt'))
 writeLines(c(as.character(metrics[1]), as.character(metrics[2]), as.character(metrics[3]), as.character(metrics[4]), as.character(metrics[5]), as.character(metrics[6])), fileConn)
 close(fileConn)
 
