@@ -42,6 +42,24 @@ bias <- function(par, est)
   mean(est-par)
 }
 
+F1 <- function(true, est) {
+  # Flatten matrices into vectors
+  true <- as.vector(true)
+  est <- as.vector(est)
+  
+  # Calculate true positives, false positives, and false negatives
+  tp <- sum(true == 1 & est == 1)
+  fp <- sum(true == 0 & est == 1)
+  fn <- sum(true == 1 & est == 0)
+  
+  # Calculate precision, recall, and F1 score
+  precision <- tp / (tp + fp)
+  recall <- tp / (tp + fn)
+  f1_score <- 2 * precision * recall / (precision + recall)
+  
+  return(f1_score)
+}
+
 
 # Function that fits rgmirt model using cross validation and returns the average RMSE and average bias
 cv.mirt <- function(data,          # matrix of responses
@@ -62,6 +80,8 @@ cv.mirt <- function(data,          # matrix of responses
 
   rmses = c()
   biases = c()
+  accuracies = c()
+  f1s = c()
   
   # loop though cross validation folds
   for (i in 1:k[1])
@@ -109,10 +129,15 @@ cv.mirt <- function(data,          # matrix of responses
       if(sum(emptycols)>0){
         p.pred = insertEmptyCols(p.pred, which(emptycols))
       }
+      # calculate true and predicted responses
+      resp.pred = round(p.pred, 0)
+      resp.true = round(p.true, 0)
       
       # add 
       rmses <- c(rmses, RMSE(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
       biases <- c(biases, bias(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
+      accuracies <- c(accuracies, mean(resp.pred==resp.true))
+      f1s <- c(f1s, F1(true=resp.true, est=resp.pred))
       
     }
   }
