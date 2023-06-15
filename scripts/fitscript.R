@@ -42,43 +42,71 @@ bias <- function(par, est)
   mean(est-par)
 }
 
-acc_f1_at_n <- function(true, pred, n) {
+# calcualte DCG based on relevance grades (ordered)
+DCG = function(r){
+  k = 1:length(r)
+  
+  D = log(k+1, base = 2)
+  DCG = sum(r/D)
+  return(DCG)
+}
 
+# NDCG
+NDCG = function(r){
+  NDCG = DCG(r)/DCG(sort(r, decreasing=T))
+  return(NDCG)
+}
+
+acc_f1_at_n <- function(p_true, p_pred, n) {
+  # binarise probabilities to 0/1
+  true_resp_matrix <- round(p_true, 0)
+  pred_resp_matrix <- round(p_pred, 0)
+  
   num_users <- dim(true)[1]
   num_movies <- dim(true)[2]
   
   topn_accuracies <- vector("numeric", num_users)
   topn_f1_scores <- vector("numeric", num_users)
+  ndcgs <- vector("numeric", num_users)
   
+  # for each user
   for (i in 1:num_users) {
-    true_relevance <- true[i, ]
-    pred_relevance <- pred[i, ]
+    true_response <- true_resp_matrix[i, ]
+    pred_response <- pred_resp_matrix[i, ]
+    
+    pred_relevance <- p_pred[i, ]
     
     # Get the indices of the top-n predicted relevance
-    topn_indices <- order(-pred_relevance)[1:n]
+    indices <- order(-pred_relevance)
+    topn_indices <- indices[1:n]
     
     # Calculate the top-n accuracy for the current user
-    topn_accuracy <- sum(true_relevance[topn_indices]) / n
+    topn_accuracy <- sum(true_response[topn_indices]) / n
     
     # Calculate the top-n F1 score for the current user
-    true_positives <- sum(true_relevance[topn_indices])
-    predicted_positives <- sum(pred_relevance[topn_indices])
-    actual_positives <- sum(true_relevance[topn_indices])
+    true_positives <- sum(true_response[topn_indices]*pred_response[topn_indices])
+    predicted_positives <- sum(pred_response[topn_indices])
+    actual_positives <- sum(true_response[topn_indices])
     
-    precision <- true_positives / predicted_positives
+    precision <- true_positives / n
     recall <- true_positives / actual_positives
     
     f1_score <- 2 * precision * recall / (precision + recall)
     
+    ordered_true_probabilities = p_true[i, indices]
+    ndcg = NDCG(ordered_true_probabilities)
+    
     topn_accuracies[i] <- topn_accuracy
     topn_f1_scores[i] <- f1_score
+    ndcgs[i] <- ndcg
   }
   
   # Calculate the average top-n accuracy and top-n F1 score across all users
   avg_topn_accuracy <- mean(topn_accuracies, na.rm = TRUE)
   avg_topn_f1_score <- mean(topn_f1_scores, na.rm = TRUE)
+  avg_ndcg <- mean(ndcgs, na.rm = TRUE)
   
-  return(c(avg_topn_accuracy, avg_topn_f1_score))
+  return(c(avg_topn_accuracy, avg_topn_f1_score, avg_ndcg))
 }
 
 
@@ -103,7 +131,7 @@ cv.mirt <- function(data,          # matrix of responses
   biases = c()
   accuracies = c()
   f1s = c()
-  acc10 = acc20 = f110 = f120 = c()
+  acc10 = acc20 = f110 = f120 = ndcg = c()
   
   # loop though cross validation folds
   for (i in 1:k[1])
@@ -151,23 +179,21 @@ cv.mirt <- function(data,          # matrix of responses
       if(sum(emptycols)>0){
         p.pred = insertEmptyCols(p.pred, which(emptycols))
       }
-      # calculate true and predicted responses
-      resp.pred = round(p.pred, 0)
-      resp.true = round(p.true, 0)
-      
+ 
       # calculate metrics and save them
       rmses <- c(rmses, RMSE(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
       biases <- c(biases, bias(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
-      top10 <- acc_f1_at_n(true=resp.true[per.ind, item.ind], pred=resp.pred[per.ind, item.ind], n=10)
-      top20 <- acc_f1_at_n(true=resp.true[per.ind, item.ind], pred=resp.pred[per.ind, item.ind], n=20)
+      top10 <- acc_f1_at_n(true=p.true[per.ind, item.ind], pred=p.pred[per.ind, item.ind], n=10)
+      top20 <- acc_f1_at_n(true=p.true[per.ind, item.ind], pred=p.pred[per.ind, item.ind], n=20)
       acc10 <- c(acc10, top10[1])
       f110 <- c(f110, top10[2])
       acc20 <- c(acc20, top20[1])
       f120 <- c(f120, top20[2])
+      ndcg <- c(ndcg, top10[3])
       
     }
   }
-  return(c(mean(rmses), mean(biases), mean(acc10), mean(acc20), mean(f110), mean(f120)))
+  return(c(mean(rmses), mean(biases), mean(acc10), mean(acc20), mean(f110), mean(f120), mean(ndcg)))
 }
 
 # read appropriate data file
