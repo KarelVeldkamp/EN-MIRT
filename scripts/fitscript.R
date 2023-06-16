@@ -62,8 +62,8 @@ acc_f1_at_n <- function(p_true, p_pred, n) {
   true_resp_matrix <- round(p_true, 0)
   pred_resp_matrix <- round(p_pred, 0)
   
-  num_users <- dim(true)[1]
-  num_movies <- dim(true)[2]
+  num_users <- dim(p_true)[1]
+  num_movies <- dim(p_true)[2]
   
   topn_accuracies <- vector("numeric", num_users)
   topn_f1_scores <- vector("numeric", num_users)
@@ -161,7 +161,7 @@ cv.mirt <- function(data,          # matrix of responses
       }
       
       # fit model
-      fit <- mirt(train, model, '2PL', method=method, GenRandomPars=randompars, lambda=lambda, pars=pars, technical = list(NCYCLES=10))
+      fit <- mirt(train, model, '2PL', method=method, GenRandomPars=randompars, lambda=lambda, pars=pars, technical = list(NCYCLES=1))
       # save parameters
       itempars <- coef(fit, simplify = TRUE)$items
       a <- itempars[,1:(ncol(itempars)-3)]
@@ -171,7 +171,7 @@ cv.mirt <- function(data,          # matrix of responses
       # calculate true and predicted probablities
       p.pred <- predict.mirt(a, d, theta)
       p.true <- predict.mirt(a_true, as.vector(d_true), theta_true)
-      
+      save(itempars, theta, file=paste('~/rgmirt/parameters/est/par', lambda1, lambda2, ndim, iteration, sparsity,i,j, '.csv', sep='_'))
       # if there are rows without responses, they have no theta estimates, so we have to fill in some empty rows to make the dimensions correct
       if(sum(emptyrows)>0){
         p.pred = insertEmptyRows(p.pred, which(emptyrows))
@@ -183,8 +183,9 @@ cv.mirt <- function(data,          # matrix of responses
       # calculate metrics and save them
       rmses <- c(rmses, RMSE(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
       biases <- c(biases, bias(est=p.pred[per.ind, item.ind], par=p.true[per.ind, item.ind]))
-      top10 <- acc_f1_at_n(true=p.true[per.ind, item.ind], pred=p.pred[per.ind, item.ind], n=10)
-      top20 <- acc_f1_at_n(true=p.true[per.ind, item.ind], pred=p.pred[per.ind, item.ind], n=20)
+      top10 <- acc_f1_at_n(p_true=p.true[per.ind, item.ind], p_pred=p.pred[per.ind, item.ind], n=10)
+
+      top20 <- acc_f1_at_n(p_true=p.true[per.ind, item.ind], p_pred=p.pred[per.ind, item.ind], n=20)
       acc10 <- c(acc10, top10[1])
       f110 <- c(f110, top10[2])
       acc20 <- c(acc20, top20[1])
@@ -241,7 +242,8 @@ print(time)
 
 # save results
 fileConn<-file(paste0('~/rgmirt/results/', lambda1,'_',lambda2,'_',ndim, '_',iteration,'_', sparsity, '.txt'))
-writeLines(c(as.character(metrics[1]), as.character(metrics[2]), as.character(metrics[3]), as.character(metrics[4]), as.character(metrics[5]), as.character(metrics[6])), fileConn)
+writeLines(c(as.character(metrics[1]), as.character(metrics[2]), as.character(metrics[3]), as.character(metrics[4]), as.character(metrics[5]), as.character(metrics[6]), as.character(metrics[7])), fileConn)
 close(fileConn)
+
 
 
