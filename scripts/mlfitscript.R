@@ -147,10 +147,10 @@ cv.mirt <- function(data,          # matrix of responses
   train[per.ind,item.ind] <- NA
   
   # if some rows contain no responses after the leave out set, remove them from the training set, and adjust person indices accordingly
-  emptyrows = apply(train, 1, function(x){length(unique(x))>2})
-  emptycols = apply(train, 2, function(x){length(unique(x))>2})
-  #emptyrows = rowSums(is.na(train)) == ncol(train)
-  #emptycols = apply(train, 2, function(x){length(unique(na.omit(x)))<2})
+  #emptyrows = apply(train, 1, function(x){length(unique(x))>2})
+  #emptycols = apply(train, 2, function(x){length(unique(x))>2})
+  emptyrows = rowSums(is.na(train)) == ncol(train)
+  emptycols = apply(train, 2, function(x){length(unique(na.omit(x)))<2})
   if(sum(emptyrows)>0){
     train = train[!emptyrows, ]
   }
