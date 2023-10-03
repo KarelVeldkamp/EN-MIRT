@@ -49,6 +49,73 @@ insertEmptyCols <- function(m, cs){
   return(new)
 }
 
+# calcualte DCG based on relevance grades (ordered)
+DCG = function(r){
+  k = 1:length(r)
+  
+  D = log(k+1, base = 2)
+  DCG = sum(r/D)
+  return(DCG)
+}
+
+# NDCG
+NDCG = function(r){
+  NDCG = DCG(r)/DCG(sort(r, decreasing=T))
+  return(NDCG)
+}
+
+acc_f1_at_n <- function(p_true, p_pred, n) {
+  # binarise probabilities to 0/1
+  true_resp_matrix <- round(p_true, 0)
+  pred_resp_matrix <- round(p_pred, 0)
+  
+  num_users <- dim(p_true)[1]
+  num_movies <- dim(p_true)[2]
+  
+  topn_accuracies <- vector("numeric", num_users)
+  topn_f1_scores <- vector("numeric", num_users)
+  ndcgs <- vector("numeric", num_users)
+  
+  # for each user
+  for (i in 1:num_users) {
+    true_response <- true_resp_matrix[i, ]
+    pred_response <- pred_resp_matrix[i, ]
+    
+    pred_relevance <- p_pred[i, ]
+    
+    # Get the indices of the top-n predicted relevance
+    indices <- order(-pred_relevance)
+    topn_indices <- indices[1:n]
+    
+    # Calculate the top-n accuracy for the current user
+    topn_accuracy <- sum(true_response[topn_indices]) / n
+    
+    # Calculate the top-n F1 score for the current user
+    true_positives <- sum(true_response[topn_indices]*pred_response[topn_indices])
+    predicted_positives <- sum(pred_response[topn_indices])
+    actual_positives <- sum(true_response[topn_indices])
+    
+    precision <- true_positives / n
+    recall <- true_positives / actual_positives
+    
+    f1_score <- 2 * precision * recall / (precision + recall)
+    
+    ordered_true_probabilities = p_true[i, indices]
+    ndcg = NDCG(ordered_true_probabilities)
+    
+    topn_accuracies[i] <- topn_accuracy
+    topn_f1_scores[i] <- f1_score
+    ndcgs[i] <- ndcg
+  }
+  
+  # Calculate the average top-n accuracy and top-n F1 score across all users
+  avg_topn_accuracy <- mean(topn_accuracies, na.rm = TRUE)
+  avg_topn_f1_score <- mean(topn_f1_scores, na.rm = TRUE)
+  avg_ndcg <- mean(ndcgs, na.rm = TRUE)
+  
+  return(c(avg_topn_accuracy, avg_topn_f1_score, avg_ndcg))
+}
+
 # Function that fits rgmirt model using cross validation and returns the average RMSE and average bias
 cv.mirt <- function(data,          # matrix of responses
                     model,         # model to be passed to mirt, can be number of dimensions
@@ -120,7 +187,16 @@ cv.mirt <- function(data,          # matrix of responses
   rmse = RMSE(test_pred, test)
   bias = bias(test_pred, test)
   
-  return(c(rmse, bias))
+  top10 <- acc_f1_at_n(p_true=p.true[per.ind, item.ind], p_pred=p.pred[per.ind, item.ind], n=10)
+  
+  top20 <- acc_f1_at_n(p_true=p.true[per.ind, item.ind], p_pred=p.pred[per.ind, item.ind], n=20)
+  acc10 <- top10[1]
+  f110 <- top10[2]
+  acc20 <- top20[1]
+  f120 <- top20[2]
+  ndcg <- top10[3]
+  
+  return(c(rmse, bias, acc10, acc20, f110, f120, ndcg))
 }
 
 # read datate
@@ -163,7 +239,7 @@ print(time)
 
 # save results
 fileConn<-file(paste0('~/mlresults/movielens', lambda1,'_',lambda2,'_',ndim, '_', fold1, '_', fold2, '.txt'))
-writeLines(c(as.character(metrics[1]), as.character(metrics[2])), fileConn)
+writeLines(c(as.character(metrics[1]), as.character(metrics[2]), as.character(metrics[3]), as.character(metrics[4]), as.character(metrics[5]), as.character(metrics[6]), as.character(metrics[7])), fileConn)
 close(fileConn)
 
 
