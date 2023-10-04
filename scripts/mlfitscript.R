@@ -2,9 +2,9 @@
 args = commandArgs(trailingOnly=TRUE)
 lambda1 = as.numeric(args[1]) # l1 penalty
 lambda2 = as.numeric(args[2]) # l2 penalty
-ndim = as.numeric(args[5])    # number of latent dimensions
-fold1 = as.numeric(args[3])   # cross falidation fold over users
-fold2 = as.numeric(args[4])   # cross valdiation fold over items
+ndim = as.numeric(args[3])    # number of latent dimensions
+fold1 = as.numeric(args[4])   # cross falidation fold over users
+fold2 = as.numeric(args[5])   # cross valdiation fold over items
 
 # load adapted version of mirt library (rgmirt)
 library(mirt)
