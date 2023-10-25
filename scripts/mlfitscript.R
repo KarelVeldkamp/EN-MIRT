@@ -189,8 +189,8 @@ cv.mirt <- function(data,          # matrix of responses
   rmse = RMSE(test_pred, test)
   bias = bias(test_pred, test)
   
+  test[is.na(test)] = 0 
   top10 <- acc_f1_at_n(p_true=test, p_pred=test_pred, n=10)
-  
   top20 <- acc_f1_at_n(p_true=test, p_pred=test_pred, n=20)
   acc10 <- top10[1]
   f110 <- top10[2]
