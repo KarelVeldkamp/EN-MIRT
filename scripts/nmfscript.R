@@ -179,7 +179,7 @@ cv.nmf <- function(data,          # matrix of responses
       
       true=true-1
       true[is.na(true)] = 0  # Count NA items as irrelevant
-      p_pred=p_pred-1
+      p.pred=p.pred-1
       top10 <- acc_f1_at_n(p_true=true[per.ind, item.ind], p_pred=p.pred[per.ind, item.ind], n=10)
       acc10 <- top10[1]
       f110 <- top10[2]
