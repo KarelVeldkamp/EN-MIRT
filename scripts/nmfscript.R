@@ -53,6 +53,7 @@ acc_f1_at_n <- function(p_true, p_pred, n) {
   
   # for each user
   for (i in 1:num_users) {
+    if (i %% 100==0) print(i)
     true_response <- true_resp_matrix[i, ]
     pred_response <- pred_resp_matrix[i, ]
     
@@ -77,14 +78,13 @@ acc_f1_at_n <- function(p_true, p_pred, n) {
     
     ordered_true_probabilities = p_true[i, indices]
     ndcg = NDCG(ordered_true_probabilities)
-    print(i)
     topn_accuracies[i] <- topn_accuracy
     topn_f1_scores[i] <- f1_score
     ndcgs[i] <- ndcg
   }
-  
   # Calculate the average top-n accuracy and top-n F1 score across all users
-  
+  topn_accuracies[is.na(topn_accuracies)] = 0
+  topn_f1_scores[is.na(topn_f1_scores)] = 0
   avg_topn_accuracy <- mean(topn_accuracies, na.rm = TRUE)
   avg_topn_f1_score <- mean(topn_f1_scores, na.rm = TRUE)
   avg_ndcg <- mean(ndcgs, na.rm = TRUE)
@@ -132,8 +132,9 @@ cv.nmf <- function(data,          # matrix of responses
       per.ind <- which(folds.persons==fold1)
       item.ind <- which(folds.items==fold2)
       
-      test <- data[per.ind, item.ind]
-      true <- train <- data
+      true <- train <- data + 1
+      #train[train==0] = -1
+      #true[true==0] = -1
       train[per.ind,item.ind] <- NA
       
       # if some rows contain no responses after the leave out set, remove them from the training set, and adjust person indices accordingly
@@ -148,7 +149,7 @@ cv.nmf <- function(data,          # matrix of responses
         item.ind = item.ind[!item.ind %in% which(emptycols)]
       }
       # convert data to right format for recosystem package 
-      data_sparse = train + 1 
+      data_sparse = train
       data_sparse[is.na(data_sparse)] <- 0
       sparse_matrix = as(as.matrix(data_sparse), 'dgTMatrix')
       ml.trn <- data_matrix(sparse_matrix)
@@ -157,7 +158,7 @@ cv.nmf <- function(data,          # matrix of responses
       defaultW <- getOption("warn")
       options(warn = -1)
       r <- Reco()
-      r$train(ml.trn, opts=list(dim=ndim, nmf=TRUE, verbose=F, costp_l1=lambda1, costp_l2=lambda2, costq_l1=lambda1, costq_l2=lambda2))
+      r$train(ml.trn, opts=list(dim=ndim, verbose=F, costp_l1=lambda1, costp_l2=lambda2, costq_l1=lambda1, costq_l2=lambda2))
       options(warn = defaultW)
       fit <- r$output(out_memory(), out_memory())
       options(warn = defaultW)
@@ -176,8 +177,9 @@ cv.nmf <- function(data,          # matrix of responses
       rmse <- RMSE(est=p.pred[per.ind, item.ind], par=true[per.ind, item.ind])
       bias <- bias(est=p.pred[per.ind, item.ind], par=true[per.ind, item.ind])
       
-      true[is.na(true)] = 0
-      
+      true=true-1
+      true[is.na(true)] = 0  # Count NA items as irrelevant
+      p_pred=p_pred-1
       top10 <- acc_f1_at_n(p_true=true[per.ind, item.ind], p_pred=p.pred[per.ind, item.ind], n=10)
       acc10 <- top10[1]
       f110 <- top10[2]
